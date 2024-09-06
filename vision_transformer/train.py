@@ -20,10 +20,11 @@ def main(args):
     if os.path.exists("./weights") is False:
         os.makedirs("./weights")
 
-    tb_writer = SummaryWriter()
+    tb_writer = SummaryWriter() #初始化 tensorboard
 
     train_images_path, train_images_label, val_images_path, val_images_label = read_split_data(args.data_path)
 
+    # 数据增强
     data_transform = {
         "train": transforms.Compose([transforms.RandomResizedCrop(224),
                                      transforms.RandomHorizontalFlip(),
@@ -47,10 +48,15 @@ def main(args):
     batch_size = args.batch_size
     nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
     print('Using {} dataloader workers every process'.format(nw))
+    
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                batch_size=batch_size,
                                                shuffle=True,
-                                               pin_memory=True,
+                                               pin_memory=True, # 如果pin_memory设置为True，
+                                                                # PyTorch会将数据加载到页面锁定的内存中
+                                                                # （pinned memory）。
+                                                                # 这样做可以加快GPU上的数据传输，
+                                                                # 锁定的内存使得主机到GPU的数据传输更加高效
                                                num_workers=nw,
                                                collate_fn=train_dataset.collate_fn)
 
@@ -87,6 +93,20 @@ def main(args):
     lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
 
+    '''
+    余弦退火公式 (lf)这行代码定义了一个匿名函数lf
+    用于计算训练过程中每个epoch对应的学习率缩放因子。
+    它基于一个余弦函数，核心思想是让学习率在整个训练过程中随着时间逐渐下降，
+    并且在训练末期达到较低的值。这种动态调整可以让模型在训练后期以较小的步长进行微调，
+    从而更好地收敛
+    
+    这里的scheduler是一个基于LambdaLR的学习率调度器，它接受两个参数：
+    optimizer: 优化器对象，表示哪个优化器的学习率需要被调整。
+    lr_lambda: 是一个函数或者函数列表，它根据当前的epoch计算学习率的缩放因子。
+    在这里，lr_lambda就是之前定义的匿名函数lf，它根据余弦函数动态调整学习率。
+    **LambdaLR**调度器会在每个epoch结束时调用lf函数，并根据返回的缩放因子调整优化器中的学习率。
+    '''
+
     for epoch in range(args.epochs):
         # train
         train_loss, train_acc = train_one_epoch(model=model,
@@ -103,6 +123,7 @@ def main(args):
                                      device=device,
                                      epoch=epoch)
 
+        # TensorBoard Write
         tags = ["train_loss", "train_acc", "val_loss", "val_acc", "learning_rate"]
         tb_writer.add_scalar(tags[0], train_loss, epoch)
         tb_writer.add_scalar(tags[1], train_acc, epoch)
@@ -110,6 +131,7 @@ def main(args):
         tb_writer.add_scalar(tags[3], val_acc, epoch)
         tb_writer.add_scalar(tags[4], optimizer.param_groups[0]["lr"], epoch)
 
+        # Save weights
         torch.save(model.state_dict(), "./weights/model-{}.pth".format(epoch))
 
 

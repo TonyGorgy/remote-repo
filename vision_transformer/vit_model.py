@@ -92,7 +92,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         # [batch_size, num_patches + 1, total_embed_dim]
-        # num_patches + 1 为 Class token
+        # num_patches + 1 为加入的 Class token
         B, N, C = x.shape
 
         # qkv(): -> [batch_size, num_patches + 1, 3 * total_embed_dim]
@@ -182,7 +182,7 @@ class VisionTransformer(nn.Module):
             in_c (int): number of input channels
             num_classes (int): number of classes for classification head
             embed_dim (int): embedding dimension
-            depth (int): depth of transformer
+            depth (int): depth of transformer | 堆叠多少个 block
             num_heads (int): number of attention heads
             mlp_ratio (int): ratio of mlp hidden dim to embedding dim
             qkv_bias (bool): enable bias for qkv if True
