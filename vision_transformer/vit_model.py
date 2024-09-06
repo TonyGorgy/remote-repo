@@ -62,13 +62,18 @@ class PatchEmbed(nn.Module):
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
 
         # flatten: [B, C, H, W] -> [B, C, HW]
+         # flatten(2) 从 H 开始将之后的展平
         # transpose: [B, C, HW] -> [B, HW, C]
+       
         x = self.proj(x).flatten(2).transpose(1, 2)
         x = self.norm(x)
         return x
 
 
 class Attention(nn.Module):
+    '''
+    Multi-header block
+    '''
     def __init__(self,
                  dim,   # 输入token的dim
                  num_heads=8,
@@ -87,6 +92,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         # [batch_size, num_patches + 1, total_embed_dim]
+        # num_patches + 1 为 Class token
         B, N, C = x.shape
 
         # qkv(): -> [batch_size, num_patches + 1, 3 * total_embed_dim]
@@ -96,9 +102,11 @@ class Attention(nn.Module):
         # [batch_size, num_heads, num_patches + 1, embed_dim_per_head]
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        # transpose: -> [batch_size, num_heads, embed_dim_per_head, num_patches + 1]
+        # transpose: 
+            # [batch_size, num_heads, num_patches + 1, embed_dim_per_head] ->
+            # [batch_size, num_heads, embed_dim_per_head, num_patches + 1]
         # @: multiply -> [batch_size, num_heads, num_patches + 1, num_patches + 1]
-        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = (q @ k.transpose(-2, -1)) * self.scale #[batch_size, num_heads, num_patches + 1, num_patches + 1]
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
