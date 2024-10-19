@@ -62,37 +62,31 @@ class PatchEmbed(nn.Module):
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
 
         # flatten: [B, C, H, W] -> [B, C, HW]
-         # flatten(2) 从 H 开始将之后的展平
         # transpose: [B, C, HW] -> [B, HW, C]
-       
         x = self.proj(x).flatten(2).transpose(1, 2)
         x = self.norm(x)
         return x
 
 
 class Attention(nn.Module):
-    '''
-    Multi-header block
-    '''
     def __init__(self,
                  dim,   # 输入token的dim
-                 num_heads=8,
-                 qkv_bias=False,
+                 num_heads=8, # multi-head self attention
+                 qkv_bias=False, 
                  qk_scale=None,
                  attn_drop_ratio=0.,
                  proj_drop_ratio=0.):
         super(Attention, self).__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.scale = qk_scale or head_dim ** -0.5 # 比例缩小 Qk/sqrt(dk)
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias) # 一次性生成 QKV 
         self.attn_drop = nn.Dropout(attn_drop_ratio)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = nn.Linear(dim, dim) # head concat 之后的 映射 W_o
         self.proj_drop = nn.Dropout(proj_drop_ratio)
 
     def forward(self, x):
         # [batch_size, num_patches + 1, total_embed_dim]
-        # num_patches + 1 为加入的 Class token
         B, N, C = x.shape
 
         # qkv(): -> [batch_size, num_patches + 1, 3 * total_embed_dim]
@@ -102,11 +96,13 @@ class Attention(nn.Module):
         # [batch_size, num_heads, num_patches + 1, embed_dim_per_head]
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        # transpose: 
-            # [batch_size, num_heads, num_patches + 1, embed_dim_per_head] ->
-            # [batch_size, num_heads, embed_dim_per_head, num_patches + 1]
+        # transpose: -> [batch_size, num_heads, embed_dim_per_head, num_patches + 1]
         # @: multiply -> [batch_size, num_heads, num_patches + 1, num_patches + 1]
-        attn = (q @ k.transpose(-2, -1)) * self.scale #[batch_size, num_heads, num_patches + 1, num_patches + 1]
+        # attn = (q @ k.transpose(-2, -1)) * self.scale 
+        # # @ 为矩阵乘法， * 为对每个元素乘法
+        # 由于 PyTorch 中的矩阵乘法是对最后两个维度进行计算，前面的维度（如 batch_size 和 num_heads）
+        # 会被视作“批次”维度并在运算中自动进行广播，
+        # 因此这些维度不会直接参与到矩阵乘法过程中。
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -182,7 +178,7 @@ class VisionTransformer(nn.Module):
             in_c (int): number of input channels
             num_classes (int): number of classes for classification head
             embed_dim (int): embedding dimension
-            depth (int): depth of transformer | 堆叠多少个 block
+            depth (int): depth of transformer
             num_heads (int): number of attention heads
             mlp_ratio (int): ratio of mlp hidden dim to embedding dim
             qkv_bias (bool): enable bias for qkv if True
@@ -211,6 +207,9 @@ class VisionTransformer(nn.Module):
         self.pos_drop = nn.Dropout(p=drop_ratio)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_ratio, depth)]  # stochastic depth decay rule
+        # 实现一个递增的drop path ratio
+        
+        #重复堆叠 Encoder for depth 次
         self.blocks = nn.Sequential(*[
             Block(dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                   drop_ratio=drop_ratio, attn_drop_ratio=attn_drop_ratio, drop_path_ratio=dpr[i],

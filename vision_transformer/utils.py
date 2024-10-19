@@ -159,11 +159,8 @@ def evaluate(model, data_loader, device, epoch):
     accu_num = torch.zeros(1).to(device)   # 累计预测正确的样本数
     accu_loss = torch.zeros(1).to(device)  # 累计损失
 
-    sample_num = 0    
-    # 这行代码使用tqdm为数据加载器data_loader添加了一个进度条
-    # 便于用户在每个epoch中实时查看数据加载的进度和效率
+    sample_num = 0
     data_loader = tqdm(data_loader, file=sys.stdout)
-    
     for step, data in enumerate(data_loader):
         images, labels = data
         sample_num += images.shape[0]
