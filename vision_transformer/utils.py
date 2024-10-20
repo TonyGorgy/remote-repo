@@ -119,14 +119,29 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch):
     model.train()
     loss_function = torch.nn.CrossEntropyLoss()
     accu_loss = torch.zeros(1).to(device)  # 累计损失
+    # torch.zeros(1)：创建一个只有一个元素的张量，并初始化为 0。
+    # 这个张量的初始值为 0，用于在后续的训练过程中累计每个 batch 的损失
     accu_num = torch.zeros(1).to(device)   # 累计预测正确的样本数
+    
+    # 在每个 epoch 开始时，将优化器的梯度清零，以避免累积上一次迭代的梯度
     optimizer.zero_grad()
 
+    
     sample_num = 0
     data_loader = tqdm(data_loader, file=sys.stdout)
+    # 类型：data_loader 变成了一个 tqdm 对象，但仍然是一个可迭代对象。
+    # 返回值：每次迭代时，仍然会返回一个 batch 的 (images, labels)，与原始的 DataLoader 保持一致。
+    # 作用：增加了实时显示的进度条，便于在训练过程中监控进展。
+    
     for step, data in enumerate(data_loader):
+        # enumerate(data_loader) 将数据加载器转换为一个带有索引的迭代器，
+        # 使得每次循环可以同时获得当前 batch 的索引 step 和数据 data
         images, labels = data
         sample_num += images.shape[0]
+        # images：是一个包含当前 batch 图像数据的张量，通常形状为 [batch_size, channels, height, width]。
+        # images.shape[0]：获取张量的第一个维度，也就是 batch 的大小（batch_size）。
+        # 例如，如果当前 batch 的大小是 16，那么 images.shape[0] 的值就是 16。
+        # 这表示当前 batch 中包含 16 个样本。
 
         pred = model(images.to(device))
         pred_classes = torch.max(pred, dim=1)[1]
