@@ -165,6 +165,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch):
     return accu_loss.item() / (step + 1), accu_num.item() / sample_num
 
 
+
 @torch.no_grad()
 def evaluate(model, data_loader, device, epoch):
     loss_function = torch.nn.CrossEntropyLoss()
